@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>足の回復 神経衰弱</title>
+    <link rel="icon" href="8足.jpg">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            text-align: center;
+            background-color: #2a2d3e;
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        h1 { margin-bottom: 10px; z-index: 10; position: relative; }
+
+        /* --- 各種画面 --- */
+        #start-screen, #pause-screen, #clear-screen, #gameover-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        #start-screen { background-color: #2a2d3e; transition: opacity 0.5s ease; }
+        #pause-screen, #clear-screen { background-color: rgba(42, 45, 62, 0.9); z-index: 1500; }
+        #gameover-screen { background-color: rgba(0, 0, 0, 0.85); z-index: 1800; }
+        
+        .hidden { opacity: 0; visibility: hidden; display: none !important; }
+
+        .pop-in { animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0; transform: scale(0.5); }
+        @keyframes popIn { to { opacity: 1; transform: scale(1); } }
+
+        h1.title-text, h2.title-text { font-size: 48px; margin-bottom: 30px; text-shadow: 2px 4px 6px rgba(0,0,0,0.3); }
+
+        .action-btn {
+            padding: 15px 30px; font-size: 22px; font-weight: bold; color: #fff;
+            border: none; border-radius: 50px; cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s; margin-bottom: 15px;
+        }
+        .action-btn:active:not(:disabled) { transform: translateY(8px); box-shadow: 0 0 0 transparent !important; }
+        .action-btn:disabled { background-color: #777 !important; box-shadow: 0 8px 0 #555 !important; cursor: not-allowed; transform: none; }
+
+        .diff-btn { width: 300px; display: block; margin: 0 auto 15px auto; }
+        #resume-btn { background-color: #4caf50; box-shadow: 0 8px 0 #388e3c; }
+        #restart-btn { background-color: #2196f3; box-shadow: 0 8px 0 #1976d2; }
+        .title-return-btn { background-color: #9e9e9e; box-shadow: 0 8px 0 #616161; }
+
+        /* --- シェアボタン --- */
+        .share-container { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        .share-btn { padding: 10px 20px; font-size: 18px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; color: white; transition: opacity 0.2s; }
+        .share-btn:hover { opacity: 0.8; }
+        #share-x { background-color: #000000; }
+        #share-line { background-color: #06C755; }
+        #share-copy { background-color: #607D8B; }
+
+        /* --- アイテムボタン --- */
+        .item-btn { background-color: #9c27b0; box-shadow: 0 8px 0 #7b1fa2; padding: 10px 30px; font-size: 20px; margin-bottom: 15px; z-index: 10; position: relative; }
+        .item-btn.ready { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        /* --- ステータスバー --- */
+        #status-bar { max-width: 800px; width: 100%; margin: 0 auto 10px auto; text-align: left; z-index: 10; position: relative; padding: 10px; border-radius: 10px; transition: all 0.3s; }
+        .status-info { display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; margin-bottom: 8px; }
+        #pause-btn { padding: 5px 10px; background-color: #f39c12; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        #timer-text { position: relative; font-weight: bold; color: #4fc3f7; }
+        #miss-text { color: #ff5252; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); transition: color 0.3s; }
+        #miss-text.invincible { color: #03a9f4; }
+        #combo-text { color: #ff9800; font-weight: bold; }
+
+        .time-bonus { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: #ffeb3b; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px #000; animation: floatUp 1s ease-out forwards; pointer-events: none; white-space: nowrap; z-index: 20;}
+        @keyframes floatUp { 0% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -30px); opacity: 0; } }
+
+        #timer-bar-container { width: 100%; height: 15px; background-color: #5d6179; border-radius: 8px; overflow: visible; margin-bottom: 10px; position: relative; }
+        #timer-bar { width: 100%; height: 100%; background-color: #4caf50; transition: width 0.5s linear, background-color 0.3s; border-radius: 8px;}
+        #timer-bar.urgent { background-color: #f44336 !important; }
+        #timer-bar.frozen { background-color: #03a9f4 !important; } 
+
+        /* --- ボード・カード --- */
+        #game-board { display: grid; gap: 15px; justify-content: center; perspective: 1000px; z-index: 10; position: relative; margin: 0 auto; }
+        .card-container { width: 120px; height: 120px; cursor: pointer; position: relative; transform-style: preserve-3d; transition: transform 0.6s ease; }
+        .card-container.flipped { transform: rotateY(180deg); }
+        .card-face { width: 100%; height: 100%; position: absolute; border-radius: 8px; backface-visibility: hidden; box-shadow: 0 6px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
+        .card-back { background-color: #fff; background-size: cover; background-position: center; transform: rotateY(180deg); }
+        .card-front { background-color: #5d6179; font-size: 32px; color: rgba(255,255,255,0.7); transition: color 0.3s, box-shadow 0.3s, border 0.3s; }
+
+        .card-container:hover:not(.flipped):not(.matched) { transform: translateY(-5px); }
+
+        .shake { animation: shake 0.5s; }
+        @keyframes shake { 0%, 100% { transform: translate(1px, 1px) rotate(0deg); } 25% { transform: translate(-3px, 0px) rotate(1deg); } 50% { transform: translate(3px, 2px) rotate(-1deg); } 75% { transform: translate(-1px, -1px) rotate(1deg); } }
+
+        .glowing .card-front { box-shadow: 0 0 20px 5px #ffeb3b inset, 0 0 20px 5px #ffeb3b; border: 3px solid #fff; color: #fff; background-color: #fbc02d; animation: pulseGlow 1s infinite alternate; }
+        @keyframes pulseGlow { from { box-shadow: 0 0 10px 2px #ffeb3b inset, 0 0 10px 2px #ffeb3b; } to { box-shadow: 0 0 25px 8px #ffeb3b inset, 0 0 25px 8px #ffeb3b; } }
+
+        .matched .card-back { animation: match-correct 0.5s ease-out forwards; box-shadow: 0 0 15px 5px #4caf50; }
+        @keyframes match-correct { 0% { transform: rotateY(180deg) scale(1); } 50% { transform: rotateY(180deg) scale(1.1); } 100% { transform: rotateY(180deg) scale(1); } }
+
+        .celebrate-fly { animation: flyAway 4s ease-in forwards !important; pointer-events: none; }
+        @keyframes flyAway { 0% { transform: rotateY(180deg) translateY(0) rotateZ(0deg); opacity: 1; } 100% { transform: rotateY(180deg) translateY(-800px) rotateZ(720deg); opacity: 0; } }
+
+        /* --- フィードバック --- */
+        #feedback-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.3s ease; }
+        #feedback-overlay.show { opacity: 1; visibility: visible; }
+        .mark { font-size: 200px; font-weight: bold; line-height: 1; text-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        .mark.correct { color: #4caf50; } .mark.incorrect { color: #f44336; } .mark.shield { color: #03a9f4; }
+        .mark.message { color: #fff; font-size: 45px; text-align: center; white-space: pre-wrap; }
+        .mark.combo { color: #ff9800; font-size: 60px; text-align: center; white-space: pre-wrap; text-shadow: 2px 2px 10px rgba(0,0,0,0.8); }
+
+        #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1400; }
+
+        #clear-stats { font-size: 22px; margin-bottom: 20px; line-height: 1.6; background-color: rgba(0,0,0,0.4); padding: 15px; border-radius: 10px; }
+
+        #final-foot-img { max-width: 300px; max-height: 300px; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); margin-bottom: 20px; border: 5px solid #ffeb3b; }
+
+        /* 画面揺らしアニメーション */
+        .screen-shake { animation: screenShake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes screenShake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* 無敵時のオーラ演出 */
+        #status-bar.invincible-glow { box-shadow: 0 0 20px #03a9f4; border: 2px solid #03a9f4; }
+    </style>
+</head>
+<body>
+    <canvas id="confetti-canvas"></canvas>
+
+    <div id="start-screen">
+        <div class="pop-in">
+            <h1 class="title-text">神経衰弱を始める</h1>
+            <p style="font-size: 20px; margin-bottom: 20px;">難易度を選択してください</p>
+            <button class="action-btn diff-btn" data-diff="easy" style="background-color: #4caf50; box-shadow: 0 8px 0 #388e3c;">イージー (余裕)</button>
+            <button class="action-btn diff-btn" data-diff="normal" style="background-color: #ff9800; box-shadow: 0 8px 0 #f57c00;">ノーマル (まあまあ)</button>
+            <button class="action-btn diff-btn" data-diff="hell" style="background-color: #f44336; box-shadow: 0 8px 0 #d32f2f;">地獄 (むぢい)</button>
+        </div>
+    </div>
+
+    <div id="pause-screen" class="hidden">
+        <h2 class="title-text">一時停止中</h2>
+        <button id="resume-btn" class="action-btn">ゲーム再開</button>
+        <button id="restart-btn" class="action-btn">最初からやり直す</button>
+        <button class="action-btn title-return-btn">タイトルへ戻る</button>
+    </div>
+
+    <div id="clear-screen" class="hidden">
+        <div class="pop-in">
+            <h2 class="title-text" style="color: #ffeb3b;">ゲームクリア！</h2>
+            <img src="8足.jpg" id="final-foot-img" alt="完治した足">
+            <div id="clear-stats"></div>
+            
+            <div class="share-container">
+                <button id="share-x" class="share-btn">𝕏でシェア</button>
+                <button id="share-line" class="share-btn">LINEで送る</button>
+                <button id="share-copy" class="share-btn">結果をコピー</button>
+            </div>
+
+            <button class="action-btn title-return-btn" style="background-color: #ff4757; box-shadow: 0 8px 0 #cf3a46; width: 100%;">タイトルへ戻る</button>
+        </div>
+    </div>
+
+    <div id="gameover-screen" class="hidden">
+        <div class="pop-in">
+            <h2 class="title-text" style="color: #f44336;">ゲームオーバー...</h2>
+            <p id="gameover-reason" style="font-size: 24px; margin-bottom: 30px;"></p>
+            <button class="action-btn title-return-btn" style="background-color: #2196f3; box-shadow: 0 8px 0 #1976d2;">タイトルへ戻る</button>
+        </div>
+    </div>
+
+    <h1>ペアを全て揃えろ！！</h1>
+    
+    <div id="status-bar">
+        <div class="status-info">
+            <span id="timer-text">プレイ時間: 0秒</span>
+            <span>手数: <span id="moves-count">0</span></span>
+            <span id="combo-text" class="hidden">0 Combo!</span>
+            <span id="miss-text">ミス: <span id="miss-count">0</span>/<span id="max-miss-count">5</span></span>
+            <span id="remaining-text">残りペア: 8</span>
+            <button id="pause-btn">一時停止</button>
+        </div>
+        <div id="timer-bar-container">
+            <div id="timer-bar"></div>
+        </div>
+        <button id="item-btn" class="action-btn item-btn" disabled>アイテム準備中...</button>
+    </div>
+
+    <div id="game-board"></div>
+
+    <div id="feedback-overlay"><span class="mark"></span></div>
+
+    <script>
+        const images = ['1足.jpg', '2足.jpg', '3足.jpg', '4足.jpg', '5足.jpg', '6足.jpg', '7足.jpg', '8足.jpg'];
+        
+        // --- 音声ファイル ---
+        const soundCorrect = new Audio('クイズ正解1 .mp3');
+        const soundFlip = new Audio('カードをめくる.mp3'); 
+        const bgm = new Audio('305_long_BPM70.mp3'); 
+        const soundClear = new Audio('歓声と拍手1.mp3'); 
+        const soundItem = new Audio('回復魔法4.mp3'); 
+        const soundPenalty = new Audio('ショック5.mp3'); 
+        const soundGameOver = new Audio('ショック5.mp3'); 
+        const soundShield = new Audio('盾で防御.mp3'); 
+        const soundBomb = new Audio('爆発1.mp3'); 
+        
+        const incorrectSounds = [
+            new Audio('クイズ不正解1.mp3'),
+            new Audio('クイズ不正解2.mp3'),
+            new Audio('クイズ不正解3.mp3')
+        ];
+        
+        soundFlip.volume = 0.5;
+        soundItem.volume = 0.6;
+        bgm.loop = true; 
+        bgm.volume = 0.3; 
+
+        const board = document.getElementById('game-board');
+        const movesCountSpan = document.getElementById('moves-count');
+        const missCountSpan = document.getElementById('miss-count');
+        const maxMissCountSpan = document.getElementById('max-miss-count');
+        const missTextContainer = document.getElementById('miss-text');
+        const remainingText = document.getElementById('remaining-text');
+        const timerText = document.getElementById('timer-text');
+        const timerBar = document.getElementById('timer-bar');
+        const timerBarContainer = document.getElementById('timer-bar-container');
+        const comboTextSpan = document.getElementById('combo-text');
+        const feedbackOverlay = document.getElementById('feedback-overlay');
+        const feedbackMark = feedbackOverlay.querySelector('.mark');
+        const statusBar = document.getElementById('status-bar');
+        
+        const startScreen = document.getElementById('start-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+        const clearScreen = document.getElementById('clear-screen');
+        const gameoverScreen = document.getElementById('gameover-screen');
+        
+        const pauseBtn = document.getElementById('pause-btn');
+        const resumeBtn = document.getElementById('resume-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const titleReturnBtns = document.querySelectorAll('.title-return-btn');
+        const itemBtn = document.getElementById('item-btn');
+
+        let cards = [];
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let isPaused = false;
+        let firstCard, secondCard;
+        let moves = 0;
+        let mistakes = 0; 
+        let remainingPairs = 8;
+        let combo = 0; 
+
+        let timeLimit = 60; 
+        let maxMistakes = 5;
+        let itemCooldownTime = 15;
+        let cols = 5;
+        let currentDifficultyName = "ノーマル"; 
+
+        let timeLeft = timeLimit;
+        let playTime = 0;
+        let timerInterval;
+        let gameStarted = false;
+
+        let itemUnlocked = false;
+        let itemOnCooldown = false;
+        let isTimeStopped = false;
+        let isInvincible = false; 
+        let hasUsedNumberHint = false; 
+        let itemUnlockTimer;
+        let itemCooldownInterval;
+        let resultShareText = ""; 
+        let usedItemsList = [];
+
+        const canvas = document.getElementById('confetti-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let confettiActive = false;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function startConfetti() {
+            confettiActive = true;
+            particles = [];
+            for(let i=0; i<150; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height,
+                    r: Math.random() * 6 + 4,
+                    dx: Math.random() * 4 - 2,
+                    dy: Math.random() * 5 + 2,
+                    color: `hsl(${Math.random() * 360}, 100%, 60%)`,
+                    tilt: Math.random() * 10
+                });
+            }
+            drawConfetti();
+        }
+
+        function drawConfetti() {
+            if(!confettiActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+                p.x += p.dx;
+                p.y += p.dy;
+                p.tilt += 0.1;
+                if(p.y > canvas.height) {
+                    p.x = Math.random() * canvas.width;
+                    p.y = -20;
+                }
+            });
+            requestAnimationFrame(drawConfetti);
+        }
+
+        function stopConfetti() {
+            confettiActive = false;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function triggerScreenShake() {
+            document.body.classList.add('screen-shake');
+            setTimeout(() => document.body.classList.remove('screen-shake'), 400);
+        }
+
+        // --- ボタン処理 ---
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                setupDifficulty(e.target.dataset.diff);
+                resetGame(false);
+                startScreen.classList.add('hidden'); 
+                document.body.style.overflow = 'auto'; 
+                bgm.currentTime = 0;
+                bgm.play(); 
+            });
+        });
+
+        titleReturnBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                stopConfetti();
+                pauseScreen.classList.add('hidden');
+                clearScreen.classList.add('hidden');
+                gameoverScreen.classList.add('hidden');
+                resetGame(true); 
+            });
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            if (!gameStarted || timeLeft <= 0 || remainingPairs === 0) return;
+            isPaused = true;
+            clearInterval(timerInterval);
+            bgm.pause();
+            pauseScreen.classList.remove('hidden');
+        });
+
+        resumeBtn.addEventListener('click', () => {
+            isPaused = false;
+            startTimer();
+            bgm.play();
+            pauseScreen.classList.add('hidden');
+        });
+
+        restartBtn.addEventListener('click', () => {
+            isPaused = false;
+            pauseScreen.classList.add('hidden');
+            resetGame(false);
+            bgm.currentTime = 0;
+            bgm.play();
+        });
+
+        // --- シェア機能 ---
+        document.getElementById('share-x').addEventListener('click', () => {
+            const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(resultShareText)}`;
+            window.open(url, '_blank');
+        });
+
+        document.getElementById('share-line').addEventListener('click', () => {
+            const url = `https://line.me/R/msg/text/?${encodeURIComponent(resultShareText)}`;
+            window.open(url, '_blank');
+        });
+
+        document.getElementById('share-copy').addEventListener('click', () => {
+            navigator.clipboard.writeText(resultShareText).then(() => {
+                alert('クリップボードにコピーしました！');
+            }).catch(err => {
+                alert('コピーに失敗しました。');
+            });
+        });
+
+        function setupDifficulty(diff) {
+            let trapCount = 0;
+            if (diff === 'easy') {
+                timeLimit = 90; maxMistakes = 10; itemCooldownTime = 10; trapCount = 0; cols = 4;
+                currentDifficultyName = "イージー";
+            } else if (diff === 'normal') {
+                timeLimit = 60; maxMistakes = 5; itemCooldownTime = 15; trapCount = 4; cols = 5;
+                currentDifficultyName = "ノーマル";
+            } else if (diff === 'hell') {
+                timeLimit = 40; maxMistakes = 3; itemCooldownTime = 20; trapCount = 8; cols = 6;
+                currentDifficultyName = "地獄";
+            }
+            
+            cards = [...images, ...images];
+            for (let i = 0; i < trapCount / 2; i++) {
+                cards.push('trap-bomb'); 
+                cards.push('trap-skull'); 
+            }
+            
+            board.style.gridTemplateColumns = `repeat(${cols}, 120px)`;
+            maxMissCountSpan.innerText = maxMistakes;
+            document.getElementById('status-bar').style.maxWidth = `${cols * 120 + (cols - 1) * 15}px`;
+        }
+
+        function resetGame(returnToTitle) {
+            clearInterval(timerInterval);
+            clearTimeout(itemUnlockTimer);
+            clearInterval(itemCooldownInterval);
+            bgm.pause();
+            
+            timeLeft = timeLimit;
+            playTime = 0;
+            moves = 0;
+            mistakes = 0; 
+            combo = 0;
+            remainingPairs = 8;
+            gameStarted = false;
+            isTimeStopped = false;
+            isInvincible = false;
+            hasUsedNumberHint = false; 
+            missTextContainer.classList.remove('invincible');
+            statusBar.classList.remove('invincible-glow');
+            itemUnlocked = false;
+            itemOnCooldown = false;
+            usedItemsList = []; 
+            resetBoard(); 
+            
+            itemBtn.disabled = true;
+            itemBtn.innerText = 'アイテム準備中...';
+            itemBtn.classList.remove('ready');
+            
+            movesCountSpan.innerText = moves;
+            missCountSpan.innerText = mistakes;
+            remainingText.innerText = `残りペア: ${remainingPairs}`;
+            updateComboUI();
+            updateTimerUI();
+            
+            board.innerHTML = '';
+            cards.sort(() => 0.5 - Math.random());
+            createBoard();
+            
+            if (returnToTitle) {
+                startScreen.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function createBoard() {
+            cards.forEach((data) => {
+                const cardContainer = document.createElement('div');
+                cardContainer.classList.add('card-container');
+                cardContainer.dataset.image = data;
+                
+                const cardFront = document.createElement('div');
+                cardFront.classList.add('card-face', 'card-front');
+                cardFront.innerText = '?';
+
+                const cardBack = document.createElement('div');
+                cardBack.classList.add('card-face', 'card-back');
+                
+                if (data.startsWith('trap-')) {
+                    const type = data.split('-')[1];
+                    cardBack.innerHTML = type === 'bomb' ? '💣' : '💀';
+                    cardBack.style.fontSize = '70px';
+                    cardBack.style.backgroundColor = '#1e1e1e';
+                    cardBack.style.backgroundImage = 'none';
+                } else {
+                    cardBack.style.backgroundImage = `url('${data}')`;
+                }
+
+                cardContainer.appendChild(cardFront);
+                cardContainer.appendChild(cardBack);
+                cardContainer.addEventListener('click', flipCard);
+                board.appendChild(cardContainer);
+            });
+        }
+
+        function startTimer() {
+            itemUnlockTimer = setTimeout(() => {
+                if(gameStarted && remainingPairs > 0) {
+                    itemUnlocked = true;
+                    itemBtn.disabled = false;
+                    itemBtn.innerText = '🎲 お助けアイテムを使う！';
+                    itemBtn.classList.add('ready');
+                }
+            }, 10000);
+
+            timerInterval = setInterval(() => {
+                if (isTimeStopped) return; 
+                timeLeft--;
+                playTime++;
+                updateTimerUI();
+
+                if (timeLeft <= 0) {
+                    triggerGameOver('時間切れ...');
+                }
+            }, 1000);
+        }
+
+        function triggerGameOver(reasonText) {
+            clearInterval(timerInterval);
+            bgm.pause();
+            soundGameOver.currentTime = 0;
+            soundGameOver.play();
+            lockBoard = true;
+            document.getElementById('gameover-reason').innerText = reasonText;
+            gameoverScreen.classList.remove('hidden');
+        }
+
+        function updateTimerUI() {
+            timerText.innerText = `プレイ時間: ${playTime}秒`;
+            const percentage = (timeLeft / timeLimit) * 100;
+            timerBar.style.width = `${Math.min(percentage, 100)}%`;
+
+            timerBar.className = '';
+            if (isTimeStopped) {
+                timerBar.classList.add('frozen'); 
+            } else if (timeLeft <= 10) {
+                timerBar.classList.add('urgent'); 
+            }
+        }
+
+        function updateComboUI() {
+            if (combo > 1) {
+                comboTextSpan.innerText = `${combo} Combo!`;
+                comboTextSpan.classList.remove('hidden');
+            } else {
+                comboTextSpan.classList.add('hidden');
+            }
+        }
+
+        function showTimeBonus(seconds, isPenalty = false) {
+            const bonusEl = document.createElement('span');
+            bonusEl.classList.add('time-bonus');
+            if (isPenalty) {
+                bonusEl.innerText = `ゲージ -${seconds}秒`;
+                bonusEl.style.color = '#f44336';
+            } else {
+                bonusEl.innerText = `ゲージ +${seconds}秒`;
+            }
+            timerBarContainer.appendChild(bonusEl);
+            setTimeout(() => bonusEl.remove(), 1000);
+        }
+
+        itemBtn.addEventListener('click', () => {
+            if (!itemUnlocked || itemOnCooldown || lockBoard || isPaused) return;
+            triggerRandomItem();
+        });
+
+        function triggerRandomItem() {
+            startItemCooldown();
+            const skills = [skillPeek, skillTimeStop, skillPairHighlight];
+            if (!hasUsedNumberHint) skills.push(skillNumberHint);
+            
+            const randomSkill = skills[Math.floor(Math.random() * skills.length)];
+            randomSkill();
+        }
+
+        function startItemCooldown() {
+            itemOnCooldown = true;
+            itemBtn.disabled = true;
+            itemBtn.classList.remove('ready');
+            let cd = itemCooldownTime; 
+            itemBtn.innerText = `クールタイム: ${cd}秒`;
+            
+            itemCooldownInterval = setInterval(() => {
+                if (isPaused) return; 
+                cd--;
+                if (cd <= 0) {
+                    clearInterval(itemCooldownInterval);
+                    itemOnCooldown = false;
+                    itemBtn.disabled = false;
+                    itemBtn.innerText = '🎲 お助けアイテムを使う！';
+                    itemBtn.classList.add('ready');
+                } else {
+                    itemBtn.innerText = `クールタイム: ${cd}秒`;
+                }
+            }, 1000);
+        }
+
+        function forceUnflip() {
+            if (firstCard && !firstCard.dataset.image.startsWith('trap-')) firstCard.classList.remove('flipped');
+            if (secondCard && !secondCard.dataset.image.startsWith('trap-')) secondCard.classList.remove('flipped');
+            resetBoard();
+        }
+
+        function skillPeek() {
+            soundItem.currentTime = 0;
+            soundItem.play();
+            usedItemsList.push('👀透視');
+            showFeedback('👀 全体透視！\n(3秒間)', 'message', 1500);
+            if (firstCard) forceUnflip();
+            
+            const hiddenCards = Array.from(document.querySelectorAll('.card-container:not(.matched)'));
+            hiddenCards.forEach(card => card.classList.add('flipped'));
+            lockBoard = true;
+            
+            setTimeout(() => {
+                hiddenCards.forEach(card => card.classList.remove('flipped'));
+                lockBoard = false;
+            }, 2000);
+        }
+
+        function skillTimeStop() {
+            soundItem.currentTime = 0;
+            soundItem.play();
+            usedItemsList.push('⏳無敵');
+            showFeedback('⏳ 無敵＆時間停止！\n(10秒間)', 'message', 1500);
+            isTimeStopped = true;
+            isInvincible = true;
+            missTextContainer.classList.add('invincible'); 
+            statusBar.classList.add('invincible-glow');
+            updateTimerUI(); 
+            
+            setTimeout(() => {
+                isTimeStopped = false;
+                isInvincible = false;
+                missTextContainer.classList.remove('invincible');
+                statusBar.classList.remove('invincible-glow');
+                updateTimerUI(); 
+            }, 10000);
+        }
+
+        function skillNumberHint() {
+            soundItem.currentTime = 0;
+            soundItem.play();
+            hasUsedNumberHint = true; 
+            usedItemsList.push('💡番号');
+            showFeedback('💡 番号ヒント！\n(4秒間)', 'message', 1500);
+            if (firstCard) forceUnflip();
+            
+            const hiddenCards = Array.from(document.querySelectorAll('.card-container:not(.matched)'));
+            hiddenCards.forEach(card => {
+                if (card.dataset.image.startsWith('trap-')) return;
+                const imgName = card.dataset.image;
+                const num = imgName.replace(/[^0-9０-９]/g, ''); 
+                const front = card.querySelector('.card-front');
+                front.innerText = num;
+                front.style.color = '#ffeb3b'; 
+            });
+            
+            setTimeout(() => {
+                hiddenCards.forEach(card => {
+                    const front = card.querySelector('.card-front');
+                    front.innerText = '?';
+                    front.style.color = '';
+                });
+            }, 4000);
+        }
+
+        function skillPairHighlight() {
+            soundItem.currentTime = 0;
+            soundItem.play();
+            usedItemsList.push('✨光');
+            showFeedback('✨ ペアハイライト！\n(5秒間)', 'message', 1500);
+            if (firstCard) forceUnflip();
+            
+            const hiddenCards = Array.from(document.querySelectorAll('.card-container:not(.matched)'));
+            const imageCards = hiddenCards.filter(c => !c.dataset.image.startsWith('trap-'));
+            if (imageCards.length === 0) return;
+            
+            const targetImg = imageCards[0].dataset.image;
+            const pair = imageCards.filter(c => c.dataset.image === targetImg);
+            
+            pair.forEach(card => card.classList.add('glowing'));
+            
+            setTimeout(() => {
+                pair.forEach(card => card.classList.remove('glowing'));
+            }, 5000);
+        }
+
+        function flipCard() {
+            if (lockBoard || isPaused) return; 
+            if (this === firstCard) return;
+            if (this.classList.contains('matched')) return;
+
+            if (!gameStarted) {
+                gameStarted = true;
+                startTimer();
+            }
+
+            soundFlip.currentTime = 0;
+            soundFlip.play();
+
+            this.classList.add('flipped');
+
+            if (this.dataset.image.startsWith('trap-')) {
+                const prevLock = lockBoard;
+                lockBoard = true;
+                const type = this.dataset.image.split('-')[1];
+
+                if (type === 'bomb') {
+                    soundBomb.currentTime = 0;
+                    soundBomb.play();
+                    triggerScreenShake();
+                    showFeedback('💣\n制限時間-10秒!', 'incorrect', 1000);
+                    timeLeft -= 10;
+                    showTimeBonus(10, true);
+                    updateTimerUI();
+                    if (timeLeft <= 0) setTimeout(() => triggerGameOver('爆弾により時間切れ...'), 1000);
+                } else if (type === 'skull') {
+                    if (!isInvincible) {
+                        showFeedback('💀\nミス+2!', 'incorrect', 1000);
+                        mistakes += 2;
+                        missCountSpan.innerText = mistakes;
+                        if (mistakes >= maxMistakes) {
+                            setTimeout(() => {
+                                showFeedback('⚠️ ペナルティ ⚠️\n全没収＆シャッフル', 'incorrect', 2000);
+                                setTimeout(triggerPunishment, 2000);
+                            }, 1000);
+                        }
+                    } else {
+                        soundShield.currentTime = 0;
+                        soundShield.play();
+                        showFeedback('🛡️\n無敵!', 'shield', 1000);
+                    }
+                }
+
+                setTimeout(() => {
+                    this.classList.remove('flipped');
+                    if (timeLeft > 0 && mistakes < maxMistakes) lockBoard = prevLock;
+                }, 1000);
+                return;
+            }
+
+            if (!hasFlippedCard) {
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            secondCard = this;
+            incrementMoves();
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.image === secondCard.dataset.image;
+            lockBoard = true;
+
+            setTimeout(() => {
+                if (isMatch) {
+                    soundCorrect.currentTime = 0;
+                    soundCorrect.play();
+                    
+                    remainingPairs--;
+                    remainingText.innerText = `残りペア: ${remainingPairs}`;
+
+                    combo++;
+                    let addedTime = 10;
+                    let comboMsg = '◯';
+                    
+                    if (combo === 2) {
+                        addedTime = 15;
+                        comboMsg = '🔥 2連コンボ!\nゲージ+15秒';
+                    } else if (combo >= 3) {
+                        addedTime = 20;
+                        comboMsg = `🔥 ${combo}連コンボ!\nゲージ+20秒 & ミス回復`;
+                        if (mistakes > 0) {
+                            mistakes--;
+                            missCountSpan.innerText = mistakes;
+                        }
+                    }
+                    
+                    updateComboUI();
+                    timeLeft += addedTime;
+                    updateTimerUI();
+                    showTimeBonus(addedTime);
+                    
+                    disableCards();
+
+                    if (remainingPairs === 0) {
+                        clearInterval(timerInterval);
+                        bgm.pause(); 
+                        soundClear.currentTime = 0;
+                        soundClear.play();
+                        
+                        let usedItemsStr = usedItemsList.length > 0 ? usedItemsList.join(', ') : 'なし';
+                        resultShareText = `「足の回復 神経衰弱」をクリア！\n難易度: ${currentDifficultyName}\nクリアタイム: ${playTime}秒\n手数: ${moves}手\n使用アイテム: ${usedItemsStr}\n#足の回復神経衰弱`;
+                        document.getElementById('clear-stats').innerText = `難易度: ${currentDifficultyName}\nクリアタイム: ${playTime}秒\n手数: ${moves}手\n使用アイテム: ${usedItemsStr}`;
+
+                        const allCards = document.querySelectorAll('.card-container');
+                        allCards.forEach((card, index) => {
+                            setTimeout(() => { card.classList.add('celebrate-fly'); }, index * 100);
+                        });
+
+                        startConfetti();
+                        setTimeout(() => { clearScreen.classList.remove('hidden'); }, 3000);
+                    } else {
+                        showFeedback(comboMsg, combo >= 2 ? 'combo' : 'correct', 1000);
+                    }
+                } else {
+                    combo = 0; 
+                    updateComboUI();
+
+                    if (isInvincible) {
+                        soundShield.currentTime = 0;
+                        soundShield.play();
+                        showFeedback('🛡️\nNO DAMAGE!', 'shield', 1000);
+                    } else {
+                        const randomIncorrectSound = incorrectSounds[Math.floor(Math.random() * incorrectSounds.length)];
+                        randomIncorrectSound.currentTime = 0;
+                        randomIncorrectSound.play();
+                        
+                        mistakes++;
+                        missCountSpan.innerText = mistakes;
+                        showFeedback('❌', 'incorrect', 1000);
+                    }
+
+                    if (mistakes >= maxMistakes) {
+                        showFeedback('⚠️ ペナルティ ⚠️\n全没収＆シャッフル', 'incorrect', 2000);
+                        setTimeout(() => { triggerPunishment(); }, 2000);
+                    } else {
+                        unflipCards();
+                    }
+                }
+            }, 1000);
+        }
+
+        function triggerPunishment() {
+            soundPenalty.currentTime = 0;
+            soundPenalty.play();
+            triggerScreenShake();
+            
+            mistakes = 0;
+            combo = 0;
+            missCountSpan.innerText = mistakes;
+            updateComboUI();
+            remainingPairs = 8;
+            remainingText.innerText = `残りペア: ${remainingPairs}`;
+
+            const allContainers = document.querySelectorAll('.card-container');
+            allContainers.forEach(card => {
+                card.classList.remove('flipped', 'matched', 'glowing');
+                card.classList.add('shake'); 
+            });
+
+            setTimeout(() => {
+                cards.sort(() => 0.5 - Math.random());
+                allContainers.forEach((card, index) => {
+                    card.dataset.image = cards[index];
+                    const cardBack = card.querySelector('.card-back');
+                    if (cards[index].startsWith('trap-')) {
+                        const type = cards[index].split('-')[1];
+                        cardBack.innerHTML = type === 'bomb' ? '💣' : '💀';
+                        cardBack.style.backgroundImage = 'none';
+                    } else {
+                        cardBack.innerHTML = '';
+                        cardBack.style.backgroundImage = `url('${cards[index]}')`;
+                    }
+                    card.classList.remove('shake');
+                    card.addEventListener('click', flipCard);
+                });
+                resetBoard();
+            }, 600);
+        }
+
+        function disableCards() {
+            firstCard.classList.add('matched');
+            secondCard.classList.add('matched');
+            firstCard.classList.remove('glowing');
+            secondCard.classList.remove('glowing');
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+            resetBoard();
+        }
+
+        function unflipCards() {
+            setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                resetBoard();
+            }, 1200);
+        }
+
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        function incrementMoves() {
+            moves++;
+            movesCountSpan.innerText = moves;
+        }
+
+        function showFeedback(text, type, duration) {
+            feedbackMark.innerText = text;
+            feedbackMark.className = `mark ${type}`;
+            feedbackOverlay.classList.add('show');
+            setTimeout(() => { feedbackOverlay.classList.remove('show'); }, duration);
+        }
+    </script>
+</body>
+</html>
